@@ -1,0 +1,4 @@
+com\university\coursemanagement\service\GradingFormulaServiceTest.class
+com\university\coursemanagement\controller\CourseControllerTest.class
+com\university\coursemanagement\service\CourseServiceTest.class
+com\university\coursemanagement\service\StudentServiceTest.class

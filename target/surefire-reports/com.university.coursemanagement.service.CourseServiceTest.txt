@@ -1,0 +1,16 @@
+-------------------------------------------------------------------------------
+Test set: com.university.coursemanagement.service.CourseServiceTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.206 s <<< FAILURE! -- in com.university.coursemanagement.service.CourseServiceTest
+com.university.coursemanagement.service.CourseServiceTest.testUpdateCourse_Success -- Time elapsed: 0.180 s <<< ERROR!
+org.mockito.exceptions.misusing.UnnecessaryStubbingException: 
+
+Unnecessary stubbings detected.
+Clean & maintainable test code requires zero unnecessary code.
+Following stubbings are unnecessary (click to navigate to relevant line of code):
+  1. -> at com.university.coursemanagement.service.CourseServiceTest.testUpdateCourse_Success(CourseServiceTest.java:105)
+Please remove unnecessary stubbings or use 'lenient' strictness. More info: javadoc for UnnecessaryStubbingException class.
+	at org.mockito.junit.jupiter.MockitoExtension.afterEach(MockitoExtension.java:192)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
