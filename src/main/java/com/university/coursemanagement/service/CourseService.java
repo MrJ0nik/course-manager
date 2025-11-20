@@ -31,7 +31,6 @@ public class CourseService {
                 .name(dto.getName())
                 .code(dto.getCode())
                 .description(dto.getDescription())
-                .instructor(dto.getInstructor())
                 .build();
 
         course = courseRepository.save(course);
@@ -68,7 +67,6 @@ public class CourseService {
         course.setName(dto.getName());
         course.setCode(dto.getCode());
         course.setDescription(dto.getDescription());
-        course.setInstructor(dto.getInstructor());
 
         course = courseRepository.save(course);
         return toDTO(course);
@@ -95,7 +93,7 @@ public class CourseService {
                 .name(course.getName())
                 .code(course.getCode())
                 .description(course.getDescription())
-                .instructor(course.getInstructor())
+                .instructor(null) // instructor field removed
                 .createdAt(course.getCreatedAt())
                 .build();
     }

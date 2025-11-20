@@ -106,11 +106,12 @@ public class AssignmentsService {
                 .build();
 
         variant = examVariantRepository.save(variant);
+        final ExamVariant finalVariant = variant;
 
         // Create tasks
         List<ExamTask> tasks = dto.getTasks().stream()
                 .map(taskDto -> ExamTask.builder()
-                        .examVariant(variant)
+                        .examVariant(finalVariant)
                         .question(taskDto.getQuestion())
                         .points(taskDto.getPoints())
                         .build())

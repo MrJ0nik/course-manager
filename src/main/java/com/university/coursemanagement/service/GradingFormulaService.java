@@ -2,6 +2,7 @@ package com.university.coursemanagement.service;
 
 import com.university.coursemanagement.dto.GradingFormulaDTO;
 import com.university.coursemanagement.entity.Course;
+import com.university.coursemanagement.entity.CourseFormula;
 import com.university.coursemanagement.entity.GradingFormula;
 import com.university.coursemanagement.exception.InvalidGradingFormulaException;
 import com.university.coursemanagement.exception.ResourceNotFoundException;
@@ -25,20 +26,30 @@ public class GradingFormulaService {
 
         validateFormula(dto);
 
-        GradingFormula formula = GradingFormula.builder()
-                .course(course)
-                .totalPoints(dto.getTotalPoints())
-                .assignmentCount(dto.getAssignmentCount())
-                .pointsPerAssignment(dto.getPointsPerAssignment())
+        // Formula is now embedded in Course, so we set it directly
+        CourseFormula embeddedFormula = CourseFormula.builder()
+                .numberOfLabs(dto.getAssignmentCount())
+                .pointsPerLab(dto.getPointsPerAssignment())
                 .examPoints(dto.getExamPoints())
-                .description(dto.getDescription())
                 .build();
+        course.setFormula(embeddedFormula);
+        course = courseRepository.save(course);
+        
+        // For compatibility, still save to repository if it exists
+        GradingFormula formula = null;
+        if (formulaRepository != null) {
+            formula = GradingFormula.builder()
+                    .course(course)
+                    .totalPoints(dto.getTotalPoints())
+                    .assignmentCount(dto.getAssignmentCount())
+                    .pointsPerAssignment(dto.getPointsPerAssignment())
+                    .examPoints(dto.getExamPoints())
+                    .description(dto.getDescription())
+                    .build();
+            formula = formulaRepository.save(formula);
+        }
 
-        formula = formulaRepository.save(formula);
-        course.setGradingFormula(formula);
-        courseRepository.save(course);
-
-        return toDTO(formula);
+        return formula != null ? toDTO(formula) : createDTOFromFormula(embeddedFormula, course.getId());
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +106,19 @@ public class GradingFormulaService {
                 .pointsPerAssignment(formula.getPointsPerAssignment())
                 .examPoints(formula.getExamPoints())
                 .description(formula.getDescription())
+                .build();
+    }
+
+    private GradingFormulaDTO createDTOFromFormula(CourseFormula embeddedFormula, Long courseId) {
+        int totalPoints = (embeddedFormula.getNumberOfLabs() * embeddedFormula.getPointsPerLab()) + embeddedFormula.getExamPoints();
+        return GradingFormulaDTO.builder()
+                .id(null)
+                .courseId(courseId)
+                .totalPoints(totalPoints)
+                .assignmentCount(embeddedFormula.getNumberOfLabs())
+                .pointsPerAssignment(embeddedFormula.getPointsPerLab())
+                .examPoints(embeddedFormula.getExamPoints())
+                .description(null)
                 .build();
     }
 }

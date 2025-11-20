@@ -3,7 +3,7 @@ package com.university.coursemanagement.service;
 import com.university.coursemanagement.dto.AssignmentDTO;
 import com.university.coursemanagement.entity.Assignment;
 import com.university.coursemanagement.entity.Course;
-import com.university.coursemanagement.entity.GradingFormula;
+import com.university.coursemanagement.entity.CourseFormula;
 import com.university.coursemanagement.exception.InvalidGradingFormulaException;
 import com.university.coursemanagement.exception.ResourceNotFoundException;
 import com.university.coursemanagement.repository.AssignmentRepository;
@@ -26,26 +26,29 @@ public class AssignmentService {
     public AssignmentDTO createAssignment(Long courseId, AssignmentDTO dto) {
         Course course = courseService.getCourseEntity(courseId);
 
-        GradingFormula formula = course.getGradingFormula();
+        CourseFormula formula = course.getFormula();
         if (formula == null) {
             throw new InvalidGradingFormulaException("Grading formula must be set before creating assignments");
         }
 
         List<Assignment> existingAssignments = assignmentRepository.findByCourseId(courseId);
-        if (existingAssignments.size() >= formula.getAssignmentCount()) {
+        long labCount = existingAssignments.stream()
+                .filter(a -> a.getType() == Assignment.AssignmentType.LAB)
+                .count();
+        if (labCount >= formula.getNumberOfLabs()) {
             throw new InvalidGradingFormulaException(
-                    String.format("Cannot create more assignments. Maximum allowed: %d", formula.getAssignmentCount()));
+                    String.format("Cannot create more labs. Maximum allowed: %d", formula.getNumberOfLabs()));
         }
 
         int totalPoints = existingAssignments.stream()
                 .mapToInt(Assignment::getMaxPoints)
                 .sum() + dto.getMaxPoints();
 
-        if (totalPoints > (formula.getAssignmentCount() * formula.getPointsPerAssignment())) {
+        if (totalPoints > (formula.getNumberOfLabs() * formula.getPointsPerLab())) {
             throw new InvalidGradingFormulaException(
                     String.format("Total assignment points (%d) exceeds formula limit (%d × %d = %d)",
-                            totalPoints, formula.getAssignmentCount(), formula.getPointsPerAssignment(),
-                            formula.getAssignmentCount() * formula.getPointsPerAssignment()));
+                            totalPoints, formula.getNumberOfLabs(), formula.getPointsPerLab(),
+                            formula.getNumberOfLabs() * formula.getPointsPerLab()));
         }
 
         Assignment assignment = Assignment.builder()
@@ -54,8 +57,7 @@ public class AssignmentService {
                 .description(dto.getDescription())
                 .maxPoints(dto.getMaxPoints())
                 .deadline(dto.getDeadline())
-                .latePenaltyPoints(dto.getLatePenaltyPoints() != null ? dto.getLatePenaltyPoints() : 0)
-                .orderNumber(dto.getOrderNumber())
+                .penaltyPerDay(dto.getLatePenaltyPoints() != null ? dto.getLatePenaltyPoints() : 0)
                 .build();
 
         assignment = assignmentRepository.save(assignment);
@@ -85,8 +87,7 @@ public class AssignmentService {
         assignment.setDescription(dto.getDescription());
         assignment.setMaxPoints(dto.getMaxPoints());
         assignment.setDeadline(dto.getDeadline());
-        assignment.setLatePenaltyPoints(dto.getLatePenaltyPoints() != null ? dto.getLatePenaltyPoints() : 0);
-        assignment.setOrderNumber(dto.getOrderNumber());
+        assignment.setPenaltyPerDay(dto.getLatePenaltyPoints() != null ? dto.getLatePenaltyPoints() : 0);
 
         assignment = assignmentRepository.save(assignment);
         return toDTO(assignment);
@@ -105,7 +106,7 @@ public class AssignmentService {
     public AssignmentDTO updatePenalty(Long id, Integer penaltyPoints) {
         Assignment assignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + id));
-        assignment.setLatePenaltyPoints(penaltyPoints);
+        assignment.setPenaltyPerDay(penaltyPoints);
         assignment = assignmentRepository.save(assignment);
         return toDTO(assignment);
     }
@@ -132,8 +133,7 @@ public class AssignmentService {
                 .description(assignment.getDescription())
                 .maxPoints(assignment.getMaxPoints())
                 .deadline(assignment.getDeadline())
-                .latePenaltyPoints(assignment.getLatePenaltyPoints())
-                .orderNumber(assignment.getOrderNumber())
+                .latePenaltyPoints(assignment.getPenaltyPerDay())
                 .build();
     }
 }

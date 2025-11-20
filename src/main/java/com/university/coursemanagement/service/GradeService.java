@@ -59,8 +59,9 @@ public class GradeService {
             LocalDateTime deadline = assignment.getDeadline();
             LocalDateTime submittedAt = dto.getSubmittedAt() != null ? dto.getSubmittedAt() : LocalDateTime.now();
             isLate = submittedAt.isAfter(deadline);
-            if (isLate) {
-                penaltyApplied = assignment.getLatePenaltyPoints();
+            if (isLate && assignment.getPenaltyPerDay() != null) {
+                long daysLate = java.time.Duration.between(deadline, submittedAt).toDays();
+                penaltyApplied = (int) (daysLate * assignment.getPenaltyPerDay());
             }
         }
 
@@ -135,7 +136,10 @@ public class GradeService {
     @Transactional(readOnly = true)
     public GradeBookDTO getGradeBook(Long courseId) {
         Course course = courseService.getCourseEntity(courseId);
-        List<Student> students = course.getStudents();
+        // Get students through enrollments
+        List<Student> students = course.getEnrollments().stream()
+                .map(Enrollment::getStudent)
+                .collect(Collectors.toList());
 
         GradeBookDTO gradeBook = GradeBookDTO.builder()
                 .courseId(course.getId())
@@ -190,8 +194,8 @@ public class GradeService {
 
             gradeBook.getStudentGrades().add(GradeBookDTO.StudentGradeDTO.builder()
                     .studentId(student.getId())
-                    .studentName(student.getFirstName() + " " + student.getLastName())
-                    .studentIdNumber(student.getStudentId())
+                    .studentName(student.getName() != null ? student.getName() : student.getEmail())
+                    .studentIdNumber(null) // studentId no longer exists
                     .email(student.getEmail())
                     .assignmentGrades(assignmentGrades)
                     .examGrade(examGrade)

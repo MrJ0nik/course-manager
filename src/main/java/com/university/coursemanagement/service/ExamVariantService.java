@@ -1,11 +1,14 @@
 package com.university.coursemanagement.service;
 
 import com.university.coursemanagement.dto.ExamVariantDTO;
+import com.university.coursemanagement.entity.Assignment;
 import com.university.coursemanagement.entity.Exam;
+import com.university.coursemanagement.entity.ExamTask;
 import com.university.coursemanagement.entity.ExamVariant;
 import com.university.coursemanagement.exception.ResourceNotFoundException;
 import com.university.coursemanagement.repository.ExamRepository;
 import com.university.coursemanagement.repository.ExamVariantRepository;
+import com.university.coursemanagement.service.AssignmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,15 +22,28 @@ public class ExamVariantService {
 
     private final ExamVariantRepository variantRepository;
     private final ExamService examService;
+    private final AssignmentService assignmentService;
 
     @Transactional
     public ExamVariantDTO createVariant(Long examId, ExamVariantDTO dto) {
-        Exam exam = examService.getExamEntity(examId);
+        // For compatibility: if examId is provided, try to get exam, otherwise treat as assignmentId
+        Assignment assignment = null;
+        try {
+            Exam exam = examService.getExamEntity(examId);
+            // If exam exists, we need to find corresponding assignment
+            // For now, we'll use assignmentId directly if provided in DTO
+            if (dto.getExamId() != null) {
+                // This is legacy code path - exam variants are now assignment-based
+                throw new ResourceNotFoundException("Exam variants are now assignment-based. Use assignment ID instead.");
+            }
+        } catch (ResourceNotFoundException e) {
+            // Treat examId as assignmentId for new structure
+            assignment = assignmentService.getAssignmentEntity(examId);
+        }
 
         ExamVariant variant = ExamVariant.builder()
-                .exam(exam)
+                .assignment(assignment)
                 .variantNumber(dto.getVariantNumber())
-                .questions(dto.getQuestions() != null ? dto.getQuestions() : new java.util.ArrayList<>())
                 .build();
 
         variant = variantRepository.save(variant);
@@ -36,7 +52,8 @@ public class ExamVariantService {
 
     @Transactional(readOnly = true)
     public List<ExamVariantDTO> getVariantsByExamId(Long examId) {
-        return variantRepository.findByExamId(examId).stream()
+        // For compatibility: treat examId as assignmentId
+        return variantRepository.findByAssignmentId(examId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -53,12 +70,12 @@ public class ExamVariantService {
         ExamVariant variant = variantRepository.findById(variantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Exam variant not found with id: " + variantId));
 
-        if (!variant.getExam().getId().equals(examId)) {
-            throw new ResourceNotFoundException("Exam variant does not belong to the specified exam");
+        if (variant.getAssignment() == null || !variant.getAssignment().getId().equals(examId)) {
+            throw new ResourceNotFoundException("Exam variant does not belong to the specified assignment");
         }
 
         variant.setVariantNumber(dto.getVariantNumber());
-        variant.setQuestions(dto.getQuestions() != null ? dto.getQuestions() : new java.util.ArrayList<>());
+        // Questions are now tasks - handled separately
 
         variant = variantRepository.save(variant);
         return toDTO(variant);
@@ -73,11 +90,17 @@ public class ExamVariantService {
     }
 
     private ExamVariantDTO toDTO(ExamVariant variant) {
+        Long assignmentId = variant.getAssignment() != null ? variant.getAssignment().getId() : null;
+        // Convert tasks to questions for compatibility
+        List<String> questions = variant.getTasks() != null 
+                ? variant.getTasks().stream().map(ExamTask::getQuestion).collect(Collectors.toList())
+                : new java.util.ArrayList<>();
+        
         return ExamVariantDTO.builder()
                 .id(variant.getId())
-                .examId(variant.getExam().getId())
+                .examId(assignmentId) // For compatibility, use assignmentId as examId
                 .variantNumber(variant.getVariantNumber())
-                .questions(variant.getQuestions())
+                .questions(questions)
                 .build();
     }
 }

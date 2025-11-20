@@ -1,10 +1,12 @@
 package com.university.coursemanagement.service;
 
 import com.university.coursemanagement.entity.Assignment;
-import com.university.coursemanagement.entity.Grade;
+import com.university.coursemanagement.entity.Enrollment;
 import com.university.coursemanagement.entity.Student;
+import com.university.coursemanagement.entity.Submission;
 import com.university.coursemanagement.repository.AssignmentRepository;
-import com.university.coursemanagement.repository.GradeRepository;
+import com.university.coursemanagement.repository.EnrollmentRepository;
+import com.university.coursemanagement.repository.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +24,8 @@ import java.util.List;
 public class DeadlineSchedulerService {
 
     private final AssignmentRepository assignmentRepository;
-    private final GradeRepository gradeRepository;
+    private final EnrollmentRepository enrollmentRepository;
+    private final SubmissionRepository submissionRepository;
     
     @Autowired(required = false)
     private EmailService emailService;
@@ -39,6 +42,7 @@ public class DeadlineSchedulerService {
 
         for (Assignment assignment : assignments) {
             LocalDateTime deadline = assignment.getDeadline();
+            if (deadline == null) continue;
 
             // Send reminder if deadline is tomorrow
             if (deadline.isAfter(now) && deadline.isBefore(tomorrow)) {
@@ -55,13 +59,15 @@ public class DeadlineSchedulerService {
     }
 
     private void sendRemindersForAssignment(Assignment assignment) {
-        List<Student> students = assignment.getCourse().getStudents();
+        List<Enrollment> enrollments = enrollmentRepository.findByCourseId(assignment.getCourse().getId());
         
-        for (Student student : students) {
+        for (Enrollment enrollment : enrollments) {
+            Student student = enrollment.getStudent();
             // Check if student already submitted
-            boolean hasSubmission = gradeRepository.findByStudentId(student.getId()).stream()
-                    .anyMatch(g -> g.getAssignment() != null && 
-                            g.getAssignment().getId().equals(assignment.getId()));
+            boolean hasSubmission = submissionRepository.findByStudentIdAndAssignmentId(
+                    student.getId(), assignment.getId()).stream()
+                    .findAny()
+                    .isPresent();
 
             if (!hasSubmission && emailService != null) {
                 String deadlineStr = assignment.getDeadline()
@@ -69,7 +75,7 @@ public class DeadlineSchedulerService {
                 
                 emailService.sendDeadlineReminder(
                         student.getEmail(),
-                        student.getFirstName() + " " + student.getLastName(),
+                        student.getName(),
                         assignment.getTitle(),
                         deadlineStr
                 );
@@ -78,27 +84,33 @@ public class DeadlineSchedulerService {
     }
 
     private void applyLatePenalties(Assignment assignment) {
-        List<Grade> grades = gradeRepository.findByAssignmentId(assignment.getId());
+        if (assignment.getPenaltyPerDay() == null || assignment.getPenaltyPerDay() == 0) {
+            return;
+        }
 
-        for (Grade grade : grades) {
-            if (!grade.getIsLate() && grade.getSubmittedAt().isAfter(assignment.getDeadline())) {
-                grade.setIsLate(true);
-                grade.setPenaltyApplied(assignment.getLatePenaltyPoints());
-                
-                int newPoints = Math.max(0, grade.getPoints() - assignment.getLatePenaltyPoints());
-                grade.setPoints(newPoints);
+        List<Submission> submissions = submissionRepository.findByAssignmentId(assignment.getId());
 
-                gradeRepository.save(grade);
+        for (Submission submission : submissions) {
+            if (!submission.getPenaltyApplied() && submission.getSubmittedAt().isAfter(assignment.getDeadline())) {
+                long daysLate = java.time.Duration.between(assignment.getDeadline(), submission.getSubmittedAt()).toDays();
+                if (daysLate > 0) {
+                    int penalty = (int) (daysLate * assignment.getPenaltyPerDay());
+                    submission.setPenaltyApplied(true);
+                    int newPoints = Math.max(0, submission.getPoints() - penalty);
+                    submission.setPoints(newPoints);
 
-                // Send notification
-                if (emailService != null) {
-                    Student student = grade.getStudent();
-                    emailService.sendLateSubmissionNotification(
-                            student.getEmail(),
-                            student.getFirstName() + " " + student.getLastName(),
-                            assignment.getTitle(),
-                            assignment.getLatePenaltyPoints()
-                    );
+                    submissionRepository.save(submission);
+
+                    // Send notification
+                    if (emailService != null) {
+                        Student student = submission.getStudent();
+                        emailService.sendLateSubmissionNotification(
+                                student.getEmail(),
+                                student.getName(),
+                                assignment.getTitle(),
+                                penalty
+                        );
+                    }
                 }
             }
         }

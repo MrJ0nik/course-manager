@@ -3,7 +3,7 @@ package com.university.coursemanagement.service;
 import com.university.coursemanagement.dto.ExamDTO;
 import com.university.coursemanagement.entity.Course;
 import com.university.coursemanagement.entity.Exam;
-import com.university.coursemanagement.entity.GradingFormula;
+import com.university.coursemanagement.entity.CourseFormula;
 import com.university.coursemanagement.exception.InvalidGradingFormulaException;
 import com.university.coursemanagement.exception.ResourceNotFoundException;
 import com.university.coursemanagement.repository.ExamRepository;
@@ -25,7 +25,7 @@ public class ExamService {
     public ExamDTO createExam(Long courseId, ExamDTO dto) {
         Course course = courseService.getCourseEntity(courseId);
 
-        GradingFormula formula = course.getGradingFormula();
+        CourseFormula formula = course.getFormula();
         if (formula == null) {
             throw new InvalidGradingFormulaException("Grading formula must be set before creating exams");
         }
